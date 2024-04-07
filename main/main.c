@@ -4,9 +4,12 @@
 #include "esp_log.h"
 
 #define DHTC11_PIN         GPIO_NUM_47
+
 #define DELAY_MS(ms)       vTaskDelay(pdMS_TO_TICKS(ms))
-#define HDCSDA_Output()    gpio_set_direction(DHTC11_PIN, GPIO_MODE_OUTPUT)// 将SDA引脚设置为输出模式
+#define DELAY_US(us)       vTaskDelay(pdMS_TO_TICKS(us / 1000))
+
 #define HDCSDA_Input()     gpio_set_direction(DHTC11_PIN, GPIO_MODE_INPUT)// 将SDA引脚设置为输入模式
+#define HDCSDA_Output()    gpio_set_direction(DHTC11_PIN, GPIO_MODE_OUTPUT)// 将SDA引脚设置为输出模式
 
 #define HDCSDA_SET()       gpio_set_level(DHTC11_PIN, 1)// 将SDA引脚输出高电平
 #define HDCSDA_CLR()       gpio_set_level(DHTC11_PIN, 0)// 将SDA引脚输出低电平
@@ -17,54 +20,31 @@ static const char *TAG = "DHTC11 Sensor";
 // 发送复位信号给传感器
 void DQ_Rst(void) {
     HDCSDA_Output();
-    DELAY_MS(2);
+    DELAY_US(2);
     HDCSDA_CLR();
-    DELAY_MS(114);
+    DELAY_US(500);//>480us 典型值960us  tRSTL
     HDCSDA_SET();
-    DELAY_MS(7);
-}
-
-// 向总线写入一个位
-void DQ_Write_Bit(uint8_t bit) {
-    gpio_set_direction(DHTC11_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(DHTC11_PIN, 0);
-    if (bit) {
-        esp_rom_delay_us(3);
-        gpio_set_level(DHTC11_PIN, 1);
-        esp_rom_delay_us(33);
-    } else {
-        esp_rom_delay_us(38);
-        gpio_set_level(DHTC11_PIN, 1);
-        esp_rom_delay_us(3);
-    }
-}
-
-// 向总线写入一个字节
-void DQ_Write_Byte(uint8_t dat) {
-    uint8_t i;
-    for (i = 0; i < 8; i++) {
-        DQ_Write_Bit(dat & 0x01);
-        dat >>= 1;
-    }
+    DELAY_US(7);
 }
 
 // 检测传感器响应
 uint8_t DQ_Presence(void) {
     uint8_t pulse_time = 0;
     HDCSDA_Input();
-    DELAY_MS(2);
-    while ((gpio_get_level(DHTC11_PIN)) && pulse_time < 100) {
+    DELAY_US(2);
+    //存在检测高电平15~60us  tPDHIGH
+    while( (HDCGet_SDA()) && pulse_time<100 ) {
         pulse_time++;
-        DELAY_MS(5);
+        DELAY_US(5);
     }
     if (pulse_time >= 10)
         return 0x01;
     else
         pulse_time = 0;
-
-    while ((!gpio_get_level(DHTC11_PIN)) && pulse_time < 240) {
+    //存在检测低电平时间60~240us  tPDLOW
+    while((HDCGet_SDA()==0) && pulse_time<240 ) {
         pulse_time++;
-        DELAY_MS(2);
+        DELAY_US(2);
     }
     if (pulse_time >= 10)
         return 0x01;
@@ -77,14 +57,14 @@ uint8_t DQ_Read_Bit(void) {
     uint8_t dat;
     HDCSDA_Output();
     HDCSDA_CLR();
-    DELAY_MS(2);
+    DELAY_US(2);
     HDCSDA_Input();
-    DELAY_MS(5);
-    if (gpio_get_level(DHTC11_PIN))
+    DELAY_US(5);
+    if (HDCGet_SDA())
         dat = 1;
     else
         dat = 0;
-    DELAY_MS(33);
+    DELAY_US(33);
     return dat;
 }
 
@@ -95,6 +75,47 @@ uint8_t DQ_Read_Byte(void) {
         dat |= (DQ_Read_Bit() << i);
     }
     return dat;
+}
+
+// 向总线写入一个位
+void DQ_Write_Bit(uint8_t bit) {
+    uint8_t testb;
+    testb = bit&0x01;
+    HDCSDA_Output();
+    if(testb)//写1
+    {
+        HDCSDA_CLR();
+        DELAY_US(5);//>1us  <15us
+        HDCSDA_SET();
+        DELAY_US(60);//>=60
+    }
+    else//写0
+    {
+        HDCSDA_CLR();
+        DELAY_US(60);//>=60us
+        HDCSDA_SET();
+        DELAY_US(5);//典型5us
+    }
+}
+
+// 向总线写入一个字节
+static void DQ_Write_Byte(uint8_t dat) {
+    HDCSDA_Output();
+    for (uint8_t i = 0; i < 8; i++) {
+        uint8_t testb = dat & 0x01;
+        dat >>= 1;
+        if (testb) { // 写1
+            HDCSDA_CLR();
+            DELAY_US(5); // 大于1us，小于15us
+            HDCSDA_SET();
+            DELAY_US(10); // 典型为10us
+        } else { // 写0
+            HDCSDA_CLR();
+            DELAY_US(15); // 大于15us
+            HDCSDA_SET();
+            DELAY_US(1); // 典型为1us
+        }
+    }
 }
 
 // CRC8 校验计算
@@ -126,7 +147,7 @@ void HTMC01_MInit_OW(void) {
     DQ_Presence();
     DQ_Write_Byte(0xcc);
     DQ_Write_Byte(0xdd);
-    // 读取 OwHumA 和 OwHumB，您需要实现这部分代码
+    // 读取 OwHumA 和 OwHumB
     OwHumA = DQ_Read_Byte();
     OwHumA = (OwHumA << 8) | DQ_Read_Byte();
     OwHumB = DQ_Read_Byte();
@@ -158,7 +179,6 @@ uint8_t ReadMDC04CapTem_onewire(int16_t *tem, uint16_t *Cap) {
     DQ_Presence();
     DQ_Write_Byte(0xcc);
     DQ_Write_Byte(0x10);
-    // DELAY_MS(7075);
     DELAY_MS(35);
 
     DQ_Rst();
@@ -178,16 +198,19 @@ uint8_t ReadMDC04CapTem_onewire(int16_t *tem, uint16_t *Cap) {
         *tem = TemBuf;
 
         CapBuf = (int16_t)(ResDat[3] << 8 | ResDat[2]);
-        CapBuf = ((float)CapBuf-OwHumB)*600/(OwHumA-OwHumB)+300;//同样结果*10
-        //20℃为5个湿度点  即1℃为0.25个湿度点 0.1℃ 为0.025
-        CapBuf = CapBuf+ 25*(TemBuf-250)/100;	
 
-        // 根据提供的公式计算湿度
-        if (CapBuf > 999)
-            CapBuf = 999;
-        else if (CapBuf < 0)
-            CapBuf = 0;
+        // CapBuf = ((float)CapBuf-OwHumB)*600/(OwHumA-OwHumB)+300;//同样结果*10
+        // //20℃为5个湿度点  即1℃为0.25个湿度点 0.1℃ 为0.025
+        // CapBuf = CapBuf+ 25*(TemBuf-250)/100;	
+
+        // // 根据提供的公式计算湿度
+        // if (CapBuf > 999)
+        //     CapBuf = 999;
+        // else if (CapBuf < 0)
+        //     CapBuf = 0;
+
         CapBuf = calculateHumidity(TemBuf, 250, CapBuf);
+
         *Cap = (uint16_t)CapBuf;
     }
     return crc;
