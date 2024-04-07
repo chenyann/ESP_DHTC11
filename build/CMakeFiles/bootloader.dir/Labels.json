@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/CMakeFiles/bootloader"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/CMakeFiles/bootloader.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/CMakeFiles/bootloader-complete.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
+		},
+		{
+			"file" : "D:/Source/ESP_IDF/esp_dhtc11/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"bootloader"
+		],
+		"name" : "bootloader"
+	}
+}

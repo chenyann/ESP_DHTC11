@@ -3,28 +3,16 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 
-#define HDCSDA_PIN GPIO_NUM_47
+#define DHTC11_PIN         GPIO_NUM_47
+#define DELAY_MS(ms)       vTaskDelay(pdMS_TO_TICKS(ms))
+#define HDCSDA_Output()    gpio_set_direction(DHTC11_PIN, GPIO_MODE_OUTPUT)// 将SDA引脚设置为输出模式
+#define HDCSDA_Input()     gpio_set_direction(DHTC11_PIN, GPIO_MODE_INPUT)// 将SDA引脚设置为输入模式
 
-#define DELAY_MS(ms) vTaskDelay(pdMS_TO_TICKS(ms))
+#define HDCSDA_SET()       gpio_set_level(DHTC11_PIN, 1)// 将SDA引脚输出高电平
+#define HDCSDA_CLR()       gpio_set_level(DHTC11_PIN, 0)// 将SDA引脚输出低电平
+#define HDCGet_SDA()       gpio_get_level(DHTC11_PIN)   // 获取SDA引脚的当前状态
 
 static const char *TAG = "DHTC11 Sensor";
-
-// 定义传感器引脚操作函数
-void HDCSDA_Output() {
-    gpio_set_direction(HDCSDA_PIN, GPIO_MODE_OUTPUT);
-}
-
-void HDCSDA_Input() {
-    gpio_set_direction(HDCSDA_PIN, GPIO_MODE_INPUT);
-}
-
-void HDCSDA_CLR() {
-    gpio_set_level(HDCSDA_PIN, 0);
-}
-
-void HDCSDA_SET() {
-    gpio_set_level(HDCSDA_PIN, 1);
-}
 
 // 发送复位信号给传感器
 void DQ_Rst(void) {
@@ -38,15 +26,15 @@ void DQ_Rst(void) {
 
 // 向总线写入一个位
 void DQ_Write_Bit(uint8_t bit) {
-    gpio_set_direction(HDCSDA_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(HDCSDA_PIN, 0);
+    gpio_set_direction(DHTC11_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(DHTC11_PIN, 0);
     if (bit) {
         esp_rom_delay_us(3);
-        gpio_set_level(HDCSDA_PIN, 1);
+        gpio_set_level(DHTC11_PIN, 1);
         esp_rom_delay_us(33);
     } else {
         esp_rom_delay_us(38);
-        gpio_set_level(HDCSDA_PIN, 1);
+        gpio_set_level(DHTC11_PIN, 1);
         esp_rom_delay_us(3);
     }
 }
@@ -65,7 +53,7 @@ uint8_t DQ_Presence(void) {
     uint8_t pulse_time = 0;
     HDCSDA_Input();
     DELAY_MS(2);
-    while ((gpio_get_level(HDCSDA_PIN)) && pulse_time < 100) {
+    while ((gpio_get_level(DHTC11_PIN)) && pulse_time < 100) {
         pulse_time++;
         DELAY_MS(5);
     }
@@ -74,7 +62,7 @@ uint8_t DQ_Presence(void) {
     else
         pulse_time = 0;
 
-    while ((!gpio_get_level(HDCSDA_PIN)) && pulse_time < 240) {
+    while ((!gpio_get_level(DHTC11_PIN)) && pulse_time < 240) {
         pulse_time++;
         DELAY_MS(2);
     }
@@ -92,7 +80,7 @@ uint8_t DQ_Read_Bit(void) {
     DELAY_MS(2);
     HDCSDA_Input();
     DELAY_MS(5);
-    if (gpio_get_level(HDCSDA_PIN))
+    if (gpio_get_level(DHTC11_PIN))
         dat = 1;
     else
         dat = 0;
@@ -225,7 +213,7 @@ void dht_task(void *pvParameter) {
 // 主函数入口
 void app_main() {
     // 初始化 GPIO
-    esp_rom_gpio_pad_select_gpio(HDCSDA_PIN);
+    esp_rom_gpio_pad_select_gpio(DHTC11_PIN);
     HDCSDA_Output();
 
     // 创建任务用于读取传感器数据
